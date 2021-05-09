@@ -1,0 +1,243 @@
+/* import the CSV file using the PROC import SAS procedure*/
+Proc Import Datafile= '/folders/myfolders/COVID-19_Death_Counts_by_Sex__Age__and_State.csv'
+ out = work.cov_mortality_dta
+ dbms = CSV
+ ;
+Run;
+
+/*descriptive statistics including check for missing values*/
+proc means data=work.cov_mortality_dta mean median stddev n nmiss;
+class Age_Group Political_Party;
+
+run;
+
+/*setting data*/
+data cov_mort_data;
+set work.cov_mortality_dta;
+/* begin with data preparation to fix missing values by elimination and mean imputation method*/
+/* remove/drop irrelevant data*/
+drop Footnote;
+
+/* remove national data because we are focuing state-level*/
+if state = 'United States' then delete;
+
+/* fix missing values*/
+if missing (COVID_19_Deaths) then delete;
+if missing (Pneumonia_and_COVID_19_Deaths) then delete;
+
+
+
+/*proc means data for mean imputation*/
+proc means data=cov_mort_data nmiss mean;
+class age_group;
+run;
+
+/*set new data for additional data preparation*/
+data mortality_dta;
+set cov_mort_data;
+
+/* mean imputation*/
+/*replace missing values by age group mean*/
+IMP_Total_Deaths =Total_Deaths;
+IMP_Influenza_Deaths= Influenza_Deaths;
+IMP_Pneumonia_Deaths = Pneumonia_Deaths;
+
+if missing(Total_Deaths)& Age_Group ='0-17 years' then
+ do;
+	IMP_Total_Deaths = 45.56;
+end;
+if missing(Total_Deaths)& Age_Group ='1-4 years' then
+ do;
+	IMP_Total_Deaths = 10.38;
+end;
+
+if missing(Total_Deaths)& Age_Group ='15-24 years' then
+ do;
+	IMP_Total_Deaths = 75.56; 
+end;
+
+if missing(Total_Deaths)& Age_Group ='18-29 years' then
+ do;
+	IMP_Total_Deaths = 191.86; 
+end;
+if missing(Total_Deaths)& Age_Group ='25-34 years' then
+ do;
+	IMP_Total_Deaths = 290; 
+end;
+if missing(Total_Deaths)& Age_Group ='30-39 years' then
+ do;
+	IMP_Total_Deaths = 394.75; 
+end;
+if missing(Total_Deaths)& Age_Group ='35-44 years' then
+ do;
+	IMP_Total_Deaths = 495; 
+end;
+if missing(Total_Deaths)& Age_Group ='40-49 years' then
+ do;
+	IMP_Total_Deaths = 605; 
+end;
+if missing(Total_Deaths)& Age_Group ='45-54 years' then
+ do;
+	IMP_Total_Deaths = 799; 
+end;
+
+if missing(Total_Deaths)& Age_Group ='5-14 years' then
+ do;
+	IMP_Total_Deaths = 13.81; 
+end;
+
+if missing(Total_Deaths)& Age_Group ='50-64 years' then
+ do;
+	IMP_Total_Deaths = 232.6; 
+end;
+
+if missing(Total_Deaths)& Age_Group ='55-64 years' then
+ do;
+	IMP_Total_Deaths = 1534; 
+end;
+if missing(Total_Deaths)& Age_Group ='Under 1 year' then
+ do;
+	IMP_Total_Deaths = 49; 
+end;
+
+/* delete the remaining missing values because of number of missing values*/
+
+if missing(Total_Deaths) then delete;
+/* delete the remaining missing values because of number of missing values*/
+
+if missing(Total_Deaths) then delete;
+if missing (Pneumonia_Deaths) then delete;
+drop Total_Deaths;
+rename IMP_Total_Deaths = Total_Deaths; 
+
+/* now perform another mean imputation to fix null values*/
+if missing(Influenza_Deaths)& Age_Group ='35-44 years' then
+ do;
+	IMP_Influenza_Deaths = 1.5; 
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='30-39 years' then
+ do;
+	IMP_Influenza_Deaths = 1.18; 
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='40-49 years' then
+ do;
+	IMP_Influenza_Deaths = 2.32; 
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='45-54 years' then
+ do;
+	IMP_Influenza_Deaths = 3.7; 
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='55-64 years' then
+ do;
+	IMP_Influenza_Deaths = 6.5; 
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='65-74 years' then
+ do;
+	IMP_Influenza_Deaths = 6.6;
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='75-84 years' then
+ do;
+	IMP_Influenza_Deaths = 6.6;
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='85 years and over' then
+ do;
+	IMP_Influenza_Deaths = 6.0;
+end;
+
+if missing(Influenza_Deaths)& Age_Group ='All Agess' then
+ do;
+	IMP_Influenza_Deaths =31;
+end;
+/* remove remaining missing values*/
+if missing (Influenza_Deaths) then delete;
+if missing (pneumonia__Influenza__or_COVID_)then delete;
+drop Influenza_Deaths;
+drop Pneumonia_Deaths;
+rename Imp_Influenza_Deaths = Influenza_Deaths;
+rename Imp_Pneumonia_Deaths = Pneumonia_Deaths;
+/* introduce new age variable*/
+
+Age = Age_Group;
+
+if Age_Group = "50-64 years" then Age = 'older than 50 years';
+if Age_Group = "55-64 years" then Age = 'older than 50 years';
+if Age_Group = "65-74 years" then Age = 'older than 50 years';
+if Age_Group = "75-84 years" then Age = 'older than 50 years';
+if Age_Group = "85 years and over" then Age = 'older than 50 years';
+
+/*simple way to represent else*/
+if Age_Group ne "85 years and over" then Age = 'less than 50 years';
+
+drop Data_As_Of;
+drop Start_Date;
+drop End_Date;
+
+proc print data=mortality_dta(obs=20);
+
+/*summary statistics*/
+proc means data=mortality_dta mean median STDDEV;
+Class Political_Party;
+run;
+
+proc means data=mortality_dta mean median STDDEV;
+Class Sex;
+run;
+/*set final dataset*/
+data final_covid_mort_dta;
+set mortality_dta;
+/* summary*/
+
+proc summary data=final_covid_mort_dta print nonobs;
+class Age Sex;
+var COVID_19_Deaths;
+run;
+
+
+/*testing hypothesis*/
+/* Covid deaths vary by political parties*/
+/*t-test is suitable for this case because of two samples, i.e., republican and democratic*/
+proc ttest data=final_covid_mort_dta;
+class Political_Party;
+var COVID_19_Deaths;
+run;
+
+/* Covid deaths vary by Age*/
+proc ttest data=final_covid_mort_dta;
+class Age;
+var COVID_19_Deaths;
+run;
+
+/* Covid deaths by age*/
+
+
+/*scatter plots to check for any linear relationship*/
+
+proc sgplot data=final_covid_mort_dta;
+   scatter y=COVID_19_Deaths x=Pneumonia_Deaths;
+   title "Scatter plot of Covid 19 Deaths and Pneumonia Deaths";
+run;
+
+proc sgplot data=final_covid_mort_dta;
+   scatter y=COVID_19_Deaths x=Influenza_Deaths;
+   title "Scatter plot of Covid 19 Deaths and Influenza_Deaths";
+run;
+
+/* simple linear regression to test whether the relationship is significant*/
+proc reg data=final_covid_mort_dta;
+model COVID_19_Deaths =	Influenza_Deaths
+;
+run;
+quit;
+
+proc reg data=final_covid_mort_dta;
+model COVID_19_Deaths = Pneumonia_Deaths 
+;
+run;
+quit;
